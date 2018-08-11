@@ -3,6 +3,8 @@ const fs = require(`fs`);
 const FtpClient = require(`ftp`);
 const glob = require(`glob`);
 
+const EXPIRATION_DATE_IN_DAYS = 7;
+
 const basePath = `./dist`;
 const destinationPath = `/web/spa`;
 const config = {
@@ -49,6 +51,46 @@ function handlePath(path) {
   return uploadFile(path, destination);
 }
 
+function isExpired(date) {
+  const oneDayInMilliseconds = 86400000;
+  const timestamp = new Date(date).getTime();
+  const expirationTimestamp = Date.now() - (oneDayInMilliseconds * EXPIRATION_DATE_IN_DAYS);
+
+  return timestamp < expirationTimestamp;
+}
+
+function cleanup(pathObject, directory) {
+  if (pathObject.name === `.` || pathObject.name === `..`) return;
+
+  const path = `${directory}/${pathObject.name}`;
+
+  // If the current path is a directory
+  // we recursively check the files in it.
+  if (pathObject.type === `d`) {
+    // eslint-disable-next-line no-use-before-define, consistent-return
+    return cleanupRemoteDirectory(path);
+  }
+
+  if (isExpired(pathObject.date)) {
+    ftpClient.delete(path, (error) => {
+      if (error) throw error;
+
+      // eslint-disable-next-line no-console
+      console.log(`Removed: ${path}`);
+      ftpClient.end();
+    });
+  }
+}
+
+function cleanupRemoteDirectory(directory) {
+  return ftpClient.list(directory, (error, pathObjects) => {
+    if (error) throw error;
+
+    pathObjects.forEach(pathObject => cleanup(pathObject, directory));
+    ftpClient.end();
+  });
+}
+
 ftpClient.on(`ready`, () => {
   // Get an array of all files and directories
   // in the given base path and send them to the
@@ -56,6 +98,12 @@ ftpClient.on(`ready`, () => {
   // directory is created on the server or the
   // file is uploaded.
   glob.sync(`${basePath}/**/*`).forEach(handlePath);
+
+  // Cleanup files older than the given amount of
+  // days. Keep in mind that this only makes sense
+  // if you've deployed at least once since the
+  // given amount of days.
+  cleanupRemoteDirectory(destinationPath);
 });
 
 ftpClient.connect(config);

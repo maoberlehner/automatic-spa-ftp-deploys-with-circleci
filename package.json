@@ -9,6 +9,7 @@
     "build": "NODE_ENV=production nuxt build",
     "start": "NODE_ENV=production nuxt start",
     "generate": "NODE_ENV=production nuxt generate",
+    "ftp-deploy": "node deploy.js",
     "lint:scripts": "eslint --ext .js,.vue --ignore-path .gitignore .",
     "lint:styles": "stylelint '+(assets|components|layouts|pages)/**/*.+(scss|vue)'",
     "lint": "yarn run lint:scripts && yarn run lint:styles"
